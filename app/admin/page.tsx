@@ -22,11 +22,23 @@ export default function AdminPage() {
   const [protocolName, setProtocolName] = useState('');
   const [initialFunding, setInitialFunding] = useState('0.003');
   const [isRegistering, setIsRegistering] = useState(false);
+  const [lastRegisteredVault, setLastRegisteredVault] = useState<{
+    vaultId: string;
+    protocolName: string;
+    protocolUid: string;
+    protocolAddress: string;
+    initialAmount: string;
+  } | null>(null);
 
   // Fund Vault State
   const [vaultId, setVaultId] = useState('');
   const [fundAmount, setFundAmount] = useState('0.003');
   const [isFunding, setIsFunding] = useState(false);
+  const [lastFundingResult, setLastFundingResult] = useState<{
+    vaultId: string;
+    amount: string;
+    newBalance: string;
+  } | null>(null);
 
   // Check authentication
   useEffect(() => {
@@ -46,6 +58,12 @@ export default function AdminPage() {
   const handleLogout = () => {
     localStorage.removeItem('suiverify_admin_auth');
     router.push('/auth');
+  };
+
+  // Copy to clipboard helper
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.info('Copied to clipboard!');
   };
 
   // Register Protocol Function
@@ -91,14 +109,19 @@ export default function AdminPage() {
       signAndExecuteTransaction(
         { transaction: tx },
         {
-          onSuccess: (result) => {
+          onSuccess: async (result) => {
             console.log('Transaction successful:', result);
+
+            // Try to extract vault info from the result
+            // Note: We'll display the digest and let users get details from explorer
+            const txDigest = result.digest;
+
             toast.success(
               <div>
                 <div>Protocol registered successfully! 🎉</div>
-                <div className="text-xs mt-1">Check the explorer for your new Vault ID</div>
+                <div className="text-xs mt-1">Check transaction details below</div>
                 <a
-                  href={buildExplorerUrl(result.digest, 'tx')}
+                  href={buildExplorerUrl(txDigest, 'tx')}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary underline text-sm font-semibold"
@@ -108,6 +131,15 @@ export default function AdminPage() {
               </div>,
               { autoClose: 8000 }
             );
+
+            // Store transaction info for display
+            setLastRegisteredVault({
+              vaultId: 'See transaction on explorer',
+              protocolName: protocolName,
+              protocolUid: 'See transaction on explorer',
+              protocolAddress: account.address,
+              initialAmount: fundingAmount.toString(),
+            });
 
             setProtocolName('');
             setInitialFunding('0.003');
@@ -170,11 +202,15 @@ export default function AdminPage() {
         {
           onSuccess: (result) => {
             console.log('Transaction successful:', result);
+
+            const txDigest = result.digest;
+
             toast.success(
               <div>
                 <div>Vault funded successfully! 💰</div>
+                <div className="text-xs mt-1">Check transaction details below</div>
                 <a
-                  href={buildExplorerUrl(result.digest, 'tx')}
+                  href={buildExplorerUrl(txDigest, 'tx')}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary underline text-sm font-semibold"
@@ -184,6 +220,13 @@ export default function AdminPage() {
               </div>,
               { autoClose: 8000 }
             );
+
+            // Store funding result for display
+            setLastFundingResult({
+              vaultId: vaultId,
+              amount: fundingAmount.toString(),
+              newBalance: 'See transaction on explorer',
+            });
 
             setVaultId('');
             setFundAmount('0.003');
@@ -393,6 +436,125 @@ export default function AdminPage() {
               </div>
             </motion.div>
           </div>
+        )}
+
+        {/* Transaction Results */}
+        {account && (lastRegisteredVault || lastFundingResult) && (
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
+            className="mt-8 space-y-4"
+          >
+            {/* Last Registered Vault */}
+            {lastRegisteredVault && (
+              <div className="bg-primary/5 border-[3px] border-primary shadow-[0.1em_0.1em_0_0_rgb(0_0_0)] rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-charcoal-text flex items-center gap-2">
+                    <span className="text-2xl">✅</span>
+                    Last Registered Protocol
+                  </h3>
+                  <button
+                    onClick={() => setLastRegisteredVault(null)}
+                    className="text-charcoal-text/50 hover:text-charcoal-text text-xl"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-charcoal-text/70 mb-1 font-medium">Protocol Name</p>
+                    <p className="text-charcoal-text font-semibold bg-white px-3 py-2 rounded-lg">
+                      {lastRegisteredVault.protocolName}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-charcoal-text/70 mb-1 font-medium">Protocol Address</p>
+                    <p className="text-charcoal-text font-mono text-xs break-all bg-white px-3 py-2 rounded-lg flex items-center justify-between gap-2">
+                      <span className="truncate">{lastRegisteredVault.protocolAddress}</span>
+                      <button
+                        onClick={() => copyToClipboard(lastRegisteredVault.protocolAddress)}
+                        className="text-primary hover:text-primary/80 flex-shrink-0"
+                      >
+                        📋
+                      </button>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-charcoal-text/70 mb-1 font-medium">Initial Funding</p>
+                    <p className="text-charcoal-text font-semibold bg-white px-3 py-2 rounded-lg">
+                      {lastRegisteredVault.initialAmount} SUI
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-charcoal-text/70 mb-1 font-medium">Vault ID</p>
+                    <p className="text-charcoal-text font-mono text-xs bg-white px-3 py-2 rounded-lg">
+                      {lastRegisteredVault.vaultId}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 pt-4 border-t-2 border-primary/20">
+                  <p className="text-xs text-charcoal-text/70 mb-2 font-medium">
+                    💡 Use the Vault ID above to fund this protocol's vault
+                  </p>
+                  <button
+                    onClick={() => {
+                      if (lastRegisteredVault.vaultId !== 'See transaction on explorer') {
+                        setVaultId(lastRegisteredVault.vaultId);
+                      }
+                    }}
+                    className="text-sm text-primary hover:text-primary/80 font-semibold"
+                  >
+                    → Auto-fill in Fund Vault section
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Last Funding Result */}
+            {lastFundingResult && (
+              <div className="bg-secondary/5 border-[3px] border-secondary shadow-[0.1em_0.1em_0_0_rgb(0_0_0)] rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-charcoal-text flex items-center gap-2">
+                    <span className="text-2xl">💰</span>
+                    Last Vault Funding
+                  </h3>
+                  <button
+                    onClick={() => setLastFundingResult(null)}
+                    className="text-charcoal-text/50 hover:text-charcoal-text text-xl"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-charcoal-text/70 mb-1 font-medium">Vault ID</p>
+                    <p className="text-charcoal-text font-mono text-xs break-all bg-white px-3 py-2 rounded-lg flex items-center justify-between gap-2">
+                      <span className="truncate">{lastFundingResult.vaultId}</span>
+                      <button
+                        onClick={() => copyToClipboard(lastFundingResult.vaultId)}
+                        className="text-secondary hover:text-secondary/80 flex-shrink-0"
+                      >
+                        📋
+                      </button>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-charcoal-text/70 mb-1 font-medium">Amount Added</p>
+                    <p className="text-charcoal-text font-semibold bg-white px-3 py-2 rounded-lg">
+                      {lastFundingResult.amount} SUI
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-charcoal-text/70 mb-1 font-medium">New Balance</p>
+                    <p className="text-charcoal-text font-semibold bg-white px-3 py-2 rounded-lg">
+                      {lastFundingResult.newBalance}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </motion.div>
         )}
 
         {/* Contract Info */}
